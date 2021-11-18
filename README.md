@@ -1,4 +1,4 @@
-# RouterOS-DDNS-Cloudflare_PrivateDEV  
+# RouterOS-DDNS-Cloudflare
 RouterOS script for Cloudflare DDNS using API_Token as authorization.  
 
 ### 一. 环境准备  
