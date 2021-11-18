@@ -1,0 +1,74 @@
+########修改并复制下面的内容到ros -- system -- script########
+:local uniqueID "1"
+:local WANInterface "拨号接口"
+:local CFzone "abc.com"
+:local CFdomain "xxx.abc.com"
+:local CFapitoken "修改为API_TOKEN"
+:local TTL 60
+:local CFproxied false
+
+
+
+### get WANip ###
+:local resolvedIP [:resolve $CFdomain]
+:local wanIP [/ip address get [find interface=$WANInterface] address]
+:set wanIP [:pick $wanIP 0 [:find $wanIP "/"]]
+:set wanIP [:toip $wanIP]
+:if ($resolvedIP = $wanIP) \
+do={
+return
+}
+
+
+### init global array ###
+:global CFarray
+:if (!any $CFarray) \
+do={
+:set CFarray [:toarray ""]
+}
+:if (!any ($CFarray->$uniqueID)) \
+do={
+:set ($CFarray->$uniqueID) [:toarray ""];
+:set ($CFarray->$uniqueID->"zoneid") ;
+:set ($CFarray->$uniqueID->"domainid") ;
+}
+
+
+### Get ZoneID ###
+:local CFzoneid ($CFarray->$uniqueID->"zoneid")
+:if (:typeof ($CFarray->$uniqueID->"zoneid") = nothing) \
+do={
+#:log info "Not found zoneid"
+:set CFzoneid [/tool fetch http-method=get mode=https url="https://api.cloudflare.com/client/v4/zones?name=$CFzone" http-header-field="Authorization: Bearer $CFapitoken,content-type:application/json" as-value output=user ]
+:global JSONIn ($CFzoneid->"data")
+:global fJParse
+:global fJParsePrintVar
+:global JParseOut [$fJParse]
+:set CFzoneid ($JParseOut->"result"->0->"id")
+#:log info $CFzoneid 
+:set ($CFarray->$uniqueID->"zoneid") $CFzoneid
+}
+
+
+### Get domainID ###
+:local CFdomainid ($CFarray->$uniqueID->"domainid")
+:if (:typeof ($CFarray->$uniqueID->"domainid") = nothing) \
+do={
+#:log info "Not found domainid";
+:set CFdomainid [/tool fetch http-method=get mode=https url="https://api.cloudflare.com/client/v4/zones/$CFzoneid/dns_records?name=$CFdomain&type=A" http-header-field="Authorization: Bearer $CFapitoken,content-type:application/json" as-value output=user];
+:global JSONIn ($CFdomainid->"data");
+:global fJParse;
+:global fJParsePrintVar;
+:global JParseOut [$fJParse];
+:set CFdomainid ($JParseOut->"result"->0->"id");
+#:log info $CFdomainid;
+:set ($CFarray->$uniqueID->"domainid") $CFdomainid;
+}
+
+
+### updateDNS ###
+#:log info updateDNS
+#:log info ("zoneid:".$CFzoneid)
+#:log info ("domainid:".$CFdomainid)
+:local output [/tool fetch http-method=put mode=https url="https://api.cloudflare.com/client/v4/zones/$CFzoneid/dns_records/$CFdomainid" http-header-field="Authorization: Bearer $CFapitoken,content-type:application/json" as-value output=user http-data="{\"type\":\"A\",\"name\":\"$CFdomain\",\"content\":\"$wanIP\",\"ttl\":$TTL,\"proxied\":$CFproxied}"]
+#:log info $output
